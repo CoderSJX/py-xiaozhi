@@ -331,7 +331,7 @@ class Application:
                                 ):
                                     await self.protocol.send_start_listening(
                                         self.listening_mode
-                                    )
+                        )
                             except Exception:
                                 pass
 
@@ -348,8 +348,12 @@ class Application:
 
     async def _on_audio_channel_opened(self):
         logger.info("协议通道已打开")
-        # 通道打开后进入 LISTENING（：简化为直读直写）
-        await self.set_device_state(DeviceState.LISTENING)
+        # 通道打开后，只有在非待机状态时才进入聆听
+        # 这样可以保持待机模式的稳定性，防止自动聆听
+        if self.device_state != DeviceState.IDLE:
+            await self.set_device_state(DeviceState.LISTENING)
+        else:
+            logger.info("保持待机状态，不自动进入聆听")
 
     async def _on_audio_channel_closed(self):
         logger.info("协议通道已关闭")

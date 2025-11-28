@@ -46,6 +46,36 @@ class _AppAdapter:
         except Exception:
             pass
 
+    async def enter_standby(self):
+        """进入待机模式"""
+        try:
+            from src.constants.constants import DeviceState, AbortReason
+
+            # 1. 首先立即中断正在进行的语音输出
+            # 这会发送 abort_speaking 指令到服务端，立即停止TTS播放
+            await self._app.abort_speaking(AbortReason.USER_INTERRUPTION)
+
+            # 2. 停止聆听功能
+            if hasattr(self._app, 'protocol') and self._app.protocol:
+                try:
+                    if hasattr(self._app.protocol, 'is_audio_channel_opened') and self._app.protocol.is_audio_channel_opened():
+                        # 发送停止聆听指令
+                        await self._app.protocol.send_stop_listening()
+                except Exception:
+                    pass
+
+            # 3. 设置设备状态为待机
+            # 这样避免触发 _on_audio_channel_opened 回调导致的自动聆听
+            await self._app.set_device_state(DeviceState.IDLE)
+
+            # 4. 重置相关标志，防止后续自动聆听
+            if hasattr(self._app, 'keep_listening'):
+                self._app.keep_listening = False
+            # aborted 标志在 abort_speaking 中已经设置，这里确保状态一致
+
+        except Exception:
+            pass
+
 
 class PluginShortcutManager:
     """
@@ -105,6 +135,7 @@ class PluginShortcutManager:
             "ABORT",
             "MODE_TOGGLE",
             "WINDOW_TOGGLE",
+            "STANDBY",
         ]:
             cfg = self.shortcuts_config.get(name, {}) or {}
             modifier = str(cfg.get("modifier", "ctrl")).lower()
@@ -273,6 +304,11 @@ class PluginShortcutManager:
         if kind == "WINDOW_TOGGLE" and is_press and self.display:
             print("显示隐藏界面")
             self._run_coroutine_threadsafe(self.display.toggle_window_visibility())
+            return
+
+        if kind == "STANDBY" and is_press and self.application:
+            print("进入待机模式")
+            self._run_coroutine_threadsafe(self.application.enter_standby())
             return
 
     def _run_coroutine_threadsafe(self, coro):
