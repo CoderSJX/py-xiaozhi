@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+from pathlib import Path
 import signal
 import sys
 import time
@@ -7,6 +8,14 @@ from typing import Optional
 
 import numpy as np
 import sounddevice as sd
+
+# 允许作为脚本直接运行：把项目根目录加入 sys.path（src 的上一级）
+try:
+    project_root = Path(__file__).resolve().parents[1]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+except Exception:
+    pass
 
 from src.audio_codecs.audio_codec import AudioCodec
 from src.audio_processing.wake_word_detect import WakeWordDetector
