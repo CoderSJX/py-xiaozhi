@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Set
@@ -146,10 +147,22 @@ class PluginShortcutManager:
         if not self.enabled:
             logger.info("全局快捷键已禁用")
             return False
+
+        # SSH/无桌面环境下，pynput 在 Linux 通常需要 X11/Wayland。
+        # 若没有 DISPLAY/WAYLAND_DISPLAY，直接降级禁用（不影响唤醒词/音频）。
+        if os.name == "posix" and (not os.environ.get("DISPLAY")) and (
+            not os.environ.get("WAYLAND_DISPLAY")
+        ):
+            logger.info(
+                "检测到无图形会话（DISPLAY/WAYLAND_DISPLAY 未设置），跳过全局快捷键监听"
+            )
+            return False
         try:
             from pynput import keyboard
         except Exception as e:
-            logger.error(f"未安装pynput库: {e}")
+            # pynput 在 Linux 上常见的失败原因：无 X server / 无 DISPLAY。
+            # 这里统一降级，不应导致主程序退出。
+            logger.error(f"无法启用全局快捷键监听（pynput不可用）: {e}")
             return False
 
         self._listener = keyboard.Listener(
