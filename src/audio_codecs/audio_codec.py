@@ -469,14 +469,36 @@ class AudioCodec:
         输入重采样处理：设备采样率 → 16kHz 使用缓冲区累积数据，凑够一帧再返回.
         """
         try:
-            resampled_data = self.input_resampler.resample_chunk(audio_data, last=False)
-            # 兼容不同 soxr 版本/实现：可能返回 tuple 或 (N,1) 形状
+            x1 = np.asarray(audio_data, dtype=np.float32).reshape(-1)
+
+            resampled_data = self.input_resampler.resample_chunk(x1, last=False)
             if isinstance(resampled_data, tuple):
                 resampled_data = resampled_data[0]
-            resampled_data = np.asarray(resampled_data, dtype=np.float32).reshape(-1)
+            y = np.asarray(resampled_data, dtype=np.float32)
+            if y.ndim == 2:
+                y = y[:, 0]
+            y = y.reshape(-1)
 
-            if len(resampled_data) > 0:
-                self._resample_input_buffer.extend(resampled_data.tolist())
+            if len(y) == 0:
+                x2 = x1.reshape(-1, 1)
+                resampled_data = self.input_resampler.resample_chunk(x2, last=False)
+                if isinstance(resampled_data, tuple):
+                    resampled_data = resampled_data[0]
+                y = np.asarray(resampled_data, dtype=np.float32)
+                if y.ndim == 2:
+                    y = y[:, 0]
+                y = y.reshape(-1)
+
+            if len(y) == 0:
+                y = soxr.resample(
+                    x1,
+                    self.device_input_sample_rate,
+                    AudioConfig.INPUT_SAMPLE_RATE,
+                    quality="QQ",
+                ).astype(np.float32, copy=False)
+
+            if len(y) > 0:
+                self._resample_input_buffer.extend(y.tolist())
 
             # 累积到目标帧大小
             expected_frame_size = AudioConfig.INPUT_FRAME_SIZE
@@ -573,14 +595,34 @@ class AudioCodec:
                     # 转换 int16 → float32
                     audio_data_float = audio_data.astype(np.float32) / 32768.0
                     # 24kHz单声道 → 设备采样率单声道重采样
-                    resampled_data = self.output_resampler.resample_chunk(
-                        audio_data_float, last=False
-                    )
+                    x1 = np.asarray(audio_data_float, dtype=np.float32).reshape(-1)
+                    resampled_data = self.output_resampler.resample_chunk(x1, last=False)
                     if isinstance(resampled_data, tuple):
                         resampled_data = resampled_data[0]
-                    resampled_data = np.asarray(resampled_data, dtype=np.float32).reshape(-1)
-                    if len(resampled_data) > 0:
-                        self._resample_output_buffer.extend(resampled_data.tolist())
+                    y = np.asarray(resampled_data, dtype=np.float32)
+                    if y.ndim == 2:
+                        y = y[:, 0]
+                    y = y.reshape(-1)
+
+                    if len(y) == 0:
+                        x2 = x1.reshape(-1, 1)
+                        resampled_data = self.output_resampler.resample_chunk(x2, last=False)
+                        if isinstance(resampled_data, tuple):
+                            resampled_data = resampled_data[0]
+                        y = np.asarray(resampled_data, dtype=np.float32)
+                        if y.ndim == 2:
+                            y = y[:, 0]
+                        y = y.reshape(-1)
+
+                    if len(y) == 0:
+                        y = soxr.resample(
+                            x1,
+                            AudioConfig.OUTPUT_SAMPLE_RATE,
+                            self.device_output_sample_rate,
+                            quality="QQ",
+                        ).astype(np.float32, copy=False)
+                    if len(y) > 0:
+                        self._resample_output_buffer.extend(y.tolist())
                 except asyncio.QueueEmpty:
                     break
 
