@@ -165,6 +165,50 @@ class AudioCodec:
             await self._auto_detect_devices()
             return
 
+        # 配置存在，但仍可能无效（例如 Linux 上 default/sysdefault 可能是 0 in 设备）
+        try:
+            in_dev = sd.query_devices(int(input_device_id))
+            in_ch = int(in_dev.get("max_input_channels", 0))
+            if in_ch <= 0:
+                logger.error(
+                    "配置的输入设备无可用输入通道，将回退为自动选择 | id=%s name=%s max_input_channels=%s",
+                    input_device_id,
+                    in_dev.get("name"),
+                    in_ch,
+                )
+                input_device_id = None
+        except Exception as e:
+            logger.error(
+                "查询配置的输入设备失败，将回退为自动选择 | id=%s err=%s",
+                input_device_id,
+                e,
+            )
+            input_device_id = None
+
+        try:
+            out_dev = sd.query_devices(int(output_device_id))
+            out_ch = int(out_dev.get("max_output_channels", 0))
+            if out_ch <= 0:
+                logger.error(
+                    "配置的输出设备无可用输出通道，将回退为自动选择 | id=%s name=%s max_output_channels=%s",
+                    output_device_id,
+                    out_dev.get("name"),
+                    out_ch,
+                )
+                output_device_id = None
+        except Exception as e:
+            logger.error(
+                "查询配置的输出设备失败，将回退为自动选择 | id=%s err=%s",
+                output_device_id,
+                e,
+            )
+            output_device_id = None
+
+        if input_device_id is None or output_device_id is None:
+            logger.info("音频设备配置无效，自动选择音频设备...")
+            await self._auto_detect_devices()
+            return
+
         # 从配置加载
         self.mic_device_id = input_device_id
         self.speaker_device_id = output_device_id

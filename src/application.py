@@ -200,15 +200,15 @@ class Application:
                 await self.set_device_state(DeviceState.IDLE)
             await self.protocol.send_start_listening(ListeningMode.MANUAL)
             await self.set_device_state(DeviceState.LISTENING)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("start_listening_manual 失败: %s", e, exc_info=True)
 
     async def stop_listening_manual(self) -> None:
         try:
             await self.protocol.send_stop_listening()
             await self.set_device_state(DeviceState.IDLE)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("stop_listening_manual 失败: %s", e, exc_info=True)
 
     # -------------------------
     # 自动/实时对话：根据 AEC 与当前配置选择模式，开启保持会话
@@ -226,8 +226,8 @@ class Application:
             self.keep_listening = True
             await self.protocol.send_start_listening(mode)
             await self.set_device_state(DeviceState.LISTENING)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("start_auto_conversation 失败: %s", e, exc_info=True)
 
     def _setup_protocol_callbacks(self) -> None:
         self.protocol.on_network_error(self._on_network_error)
