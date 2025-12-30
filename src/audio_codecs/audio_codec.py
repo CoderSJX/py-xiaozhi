@@ -470,8 +470,13 @@ class AudioCodec:
         """
         try:
             resampled_data = self.input_resampler.resample_chunk(audio_data, last=False)
+            # 兼容不同 soxr 版本/实现：可能返回 tuple 或 (N,1) 形状
+            if isinstance(resampled_data, tuple):
+                resampled_data = resampled_data[0]
+            resampled_data = np.asarray(resampled_data, dtype=np.float32).reshape(-1)
+
             if len(resampled_data) > 0:
-                self._resample_input_buffer.extend(resampled_data)
+                self._resample_input_buffer.extend(resampled_data.tolist())
 
             # 累积到目标帧大小
             expected_frame_size = AudioConfig.INPUT_FRAME_SIZE
@@ -571,8 +576,11 @@ class AudioCodec:
                     resampled_data = self.output_resampler.resample_chunk(
                         audio_data_float, last=False
                     )
+                    if isinstance(resampled_data, tuple):
+                        resampled_data = resampled_data[0]
+                    resampled_data = np.asarray(resampled_data, dtype=np.float32).reshape(-1)
                     if len(resampled_data) > 0:
-                        self._resample_output_buffer.extend(resampled_data)
+                        self._resample_output_buffer.extend(resampled_data.tolist())
                 except asyncio.QueueEmpty:
                     break
 
